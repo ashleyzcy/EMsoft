@@ -103,6 +103,7 @@ set(EMsoftLib_SRCS
   ${EMsoftLib_SOURCE_DIR}/rng.f90
   ${EMsoftLib_SOURCE_DIR}/rotations.f90
   ${EMsoftLib_SOURCE_DIR}/simulated_annealing.f90
+  ${EMsoftLib_SOURCE_DIR}/so2.f90
   ${EMsoftLib_SOURCE_DIR}/so3.f90
   ${EMsoftLib_SOURCE_DIR}/spsort.f
   ${EMsoftLib_SOURCE_DIR}/STEMmodule.f90
@@ -118,6 +119,7 @@ set(EMsoftLib_SRCS
   ${EMsoftLib_SOURCE_DIR}/detectors.f90
   ${EMsoftLib_SOURCE_DIR}/DSHT.f90
   ${EMsoftLib_SOURCE_DIR}/fft_wrap.f90
+  ${EMsoftLib_SOURCE_DIR}/ISEmod.f90
 
   ${EMsoftLib_Additional_SRCS}
 )

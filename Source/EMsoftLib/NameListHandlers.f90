@@ -455,11 +455,13 @@ integer(kind=irg)       :: pgnum
 character(3)            :: CSLtype
 logical                 :: fixedAB
 character(fnlen)        :: outname
+character(fnlen)        :: octonions
 
-namelist /GBOlist/ pgnum, numsamples, numbins, outname, nthreads, CSLtype, fixedAB
+namelist /GBOlist/ pgnum, numsamples, numbins, outname, nthreads, CSLtype, fixedAB, octonions
 
 nthreads = 1
 outname = 'undefined' 
+octonions = 'random'
 pgnum = 32
 numsamples = 100000
 numbins = 180
@@ -486,7 +488,8 @@ gbonl%nthreads = nthreads
 gbonl%pgnum = pgnum
 gbonl%numsamples = numsamples
 gbonl%numbins = numbins
-gbonl%outname = outname
+gbonl%outname = trim(outname)
+gbonl%octonions = trim(octonions)
 gbonl%CSLtype = trim(CSLtype)
 gbonl%fixedAB = fixedAB
 
@@ -2849,6 +2852,90 @@ end subroutine GetEBSDMasterNameList
 
 !--------------------------------------------------------------------------
 !
+! SUBROUTINE:GetISEMasterNameList
+!
+!> @author Marc De Graef, Carnegie Mellon University
+!
+!> @brief read namelist file and fill mcnl structure (used by EMISEmaster.f90)
+!
+!> @param nmlfile namelist file name
+!> @param emnl ISE master name list structure
+!
+!> @date 12/18/20  MDG 1.0 new routine
+!--------------------------------------------------------------------------
+recursive subroutine GetISEMasterNameList(nmlfile, emnl, initonly)
+!DEC$ ATTRIBUTES DLLEXPORT :: GetISEMasterNameList
+
+use error
+
+IMPLICIT NONE
+
+character(fnlen),INTENT(IN)                     :: nmlfile
+type(ISEMasterNameListType),INTENT(INOUT)       :: emnl
+!f2py intent(in,out) ::  emnl
+logical,OPTIONAL,INTENT(IN)                     :: initonly
+
+logical                                         :: skipread = .FALSE.
+
+integer(kind=irg)       :: npx
+integer(kind=irg)       :: nthreads
+real(kind=sgl)          :: iscale(3)
+character(3)            :: Notify
+character(fnlen)        :: outname
+character(fnlen)        :: tiffname
+character(fnlen)        :: xtalname
+
+
+! define the IO namelist to facilitate passing variables to the program.
+namelist /ISEmastervars/ npx,nthreads,Notify,xtalname,outname,iscale,tiffname 
+
+! set the input parameters to default values (except for xtalname, which must be present)
+npx = 500
+nthreads = 1
+iscale = (/ 3.0, 4.0, 1.0 /)
+Notify = 'Off'
+tiffname = 'undefined'
+outname = 'undefined'
+xtalname = 'undefined'
+
+if (present(initonly)) then
+  if (initonly) skipread = .TRUE.
+end if
+
+if (.not.skipread) then
+! read the namelist file
+ open(UNIT=dataunit,FILE=trim(EMsoft_toNativePath(nmlfile)),DELIM='apostrophe',STATUS='old')
+ read(UNIT=dataunit,NML=ISEmastervars)
+ close(UNIT=dataunit,STATUS='keep')
+
+! check for required entries
+ if (trim(xtalname).eq.'undefined') then
+  call FatalError('GetISEMasterNameList:',' crystal structure file name is undefined in '//nmlfile)
+ end if
+
+ if (trim(outname).eq.'undefined') then
+  call FatalError('GetISEMasterNameList:',' output file name is undefined in '//nmlfile)
+ end if
+
+  if (trim(tiffname).eq.'undefined') then
+  call FatalError('GetISEMasterNameList:',' tiff file name is undefined in '//nmlfile)
+ end if
+end if
+
+! if we get here, then all appears to be ok, and we need to fill in the emnl fields
+emnl%npx = npx
+emnl%nthreads = nthreads
+emnl%iscale = iscale
+emnl%Notify = Notify
+emnl%outname= outname
+emnl%tiffname= tiffname
+emnl%xtalname = xtalname
+
+end subroutine GetISEMasterNameList
+
+
+!--------------------------------------------------------------------------
+!
 ! SUBROUTINE:GetEECMasterNameList
 !
 !> @author Marc De Graef, Carnegie Mellon University
@@ -3903,7 +3990,6 @@ real(kind=sgl)          :: thetac
 real(kind=sgl)          :: delta
 real(kind=sgl)          :: xpc
 real(kind=sgl)          :: ypc
-real(kind=sgl)          :: omega
 real(kind=sgl)          :: energymin
 real(kind=sgl)          :: energymax
 real(kind=sgl)          :: gammavalue
@@ -3922,6 +4008,7 @@ character(1)            :: spatialaverage
 character(3)            :: scalingmode
 character(3)            :: eulerconvention
 character(3)            :: outputformat
+character(4)            :: Fframe
 character(5)            :: bitdepth
 character(fnlen)        :: anglefile
 character(fnlen)        :: anglefiletype
@@ -3932,9 +4019,9 @@ character(fnlen)        :: datafile
 ! define the IO namelist to facilitate passing variables to the program.
 namelist  / EBSDdata / stdout, L, thetac, delta, numsx, numsy, xpc, ypc, anglefile, eulerconvention, masterfile, bitdepth, &
                         energyfile, datafile, beamcurrent, dwelltime, energymin, energymax, binning, gammavalue, alphaBD, &
-                        scalingmode, axisangle, nthreads, outputformat, maskpattern, energyaverage, omega, spatialaverage, &
+                        scalingmode, axisangle, nthreads, outputformat, maskpattern, energyaverage, spatialaverage, &
                         applyDeformation, Ftensor, includebackground, anglefiletype, makedictionary, hipassw, nregions, &
-                        maskradius, poisson
+                        maskradius, poisson, Fframe
 
 ! set the input parameters to default values (except for xtalname, which must be present)
 stdout          = 6
@@ -3949,7 +4036,6 @@ thetac          = 0.0           ! [degrees]
 delta           = 25.0          ! [microns]
 xpc             = 0.0           ! [pixels]
 ypc             = 0.0           ! [pixels]
-omega           = 0.0
 energymin       = 15.0          ! minimum energy to consider
 energymax       = 30.0          ! maximum energy to consider
 gammavalue      = 1.0           ! gamma factor
@@ -3964,6 +4050,7 @@ makedictionary  = 'y'
 poisson         = 'n'           ! apply poisson noise ? 
 includebackground = 'y'         ! set to 'n' to remove realistic background intensity profile
 applyDeformation = 'n'          ! should we apply a deformation tensor to the unit cell?
+Fframe = 'crys'                 ! frame of reference for the Ftensor ('crys':crystal frame; 'samp':sample frame)
 maskpattern     = 'n'           ! 'y' or 'n' to include a circular mask
 scalingmode     = 'not'         ! intensity selector ('lin', 'gam', or 'not')
 eulerconvention = 'tsl'         ! convention for the first Euler angle ['tsl' or 'hkl']
@@ -4045,6 +4132,7 @@ enl%includebackground = includebackground
 enl%makedictionary = makedictionary
 enl%poisson = poisson
 enl%applyDeformation = applyDeformation
+enl%Fframe=Fframe
 enl%maskpattern = maskpattern
 enl%scalingmode = scalingmode
 enl%eulerconvention = eulerconvention
@@ -4057,9 +4145,138 @@ enl%masterfile = masterfile
 ! user definition, if any, in the namelist file is overwritten here...
 enl%energyfile = enl%masterfile       ! changed on 05/16/19 [MDG]
 enl%datafile = datafile
-enl%omega = omega
 enl%spatialaverage = spatialaverage
 end subroutine GetEBSDNameList
+
+!--------------------------------------------------------------------------
+!
+! SUBROUTINE:GetBSENameList
+!
+!> @author Marc De Graef, Carnegie Mellon University
+!
+!> @brief read namelist file and fill enl structure (used by EMBSE.f90)
+!
+!> @param nmlfile namelist file name
+!> @param enl EMBSE name list structure
+!
+!> @date 07/28/20  MDG 1.0 new routine
+!--------------------------------------------------------------------------
+recursive subroutine GetBSENameList(nmlfile, enl, initonly)
+!DEC$ ATTRIBUTES DLLEXPORT :: GetBSENameList
+
+use error
+
+IMPLICIT NONE
+
+character(fnlen),INTENT(IN)             :: nmlfile
+type(BSENameListType),INTENT(INOUT)     :: enl
+!f2py intent(in,out) ::  enl
+logical,OPTIONAL,INTENT(IN)             :: initonly
+
+logical                                 :: skipread = .FALSE.
+
+real(kind=sgl)          :: energymin
+real(kind=sgl)          :: energymax
+real(kind=sgl)          :: incidence 
+real(kind=sgl)          :: beamcurrent
+real(kind=sgl)          :: dwelltime
+real(kind=sgl)          :: gammavalue
+real(kind=sgl)          :: workingdistance
+real(kind=sgl)          :: BSEdistance
+real(kind=sgl)          :: rin
+real(kind=sgl)          :: rout
+integer(kind=irg)       :: NsqL
+integer(kind=irg)       :: nthreads
+character(fnlen)        :: scalingmode
+character(fnlen)        :: useangles
+character(fnlen)        :: imagefile
+character(fnlen)        :: masterfile
+character(fnlen)        :: Kosselmasterfile
+character(fnlen)        :: datafile
+
+! define the IO namelist to facilitate passing variables to the program.
+namelist  / BSEdata / energymin, energymax, beamcurrent, dwelltime, gammavalue, workingdistance, BSEdistance, Kosselmasterfile, &
+                      rin, rout, NsqL, nthreads, scalingmode, useangles, imagefile, masterfile, datafile, incidence
+
+
+! set the input parameters to default values (except for xtalname, which must be present)
+energymin = 5.0
+energymax = 20.0
+incidence = 0.0
+beamcurrent = 150.0
+dwelltime = 100.0
+gammavalue = 1.0
+workingdistance = 10.0
+BSEdistance = 9.5
+rin = 5.0
+rout = 12.0
+NsqL = 40
+nthreads = 1
+scalingmode = 'not;'
+useangles = 'original'
+imagefile = 'undefined'
+masterfile = 'undefined'
+Kosselmasterfile = 'undefined'
+datafile = 'undefined'
+
+if (present(initonly)) then
+  if (initonly) skipread = .TRUE.
+end if
+
+if (.not.skipread) then
+! read the namelist file
+ open(UNIT=dataunit,FILE=trim(EMsoft_toNativePath(nmlfile)),DELIM='apostrophe',STATUS='old')
+ read(UNIT=dataunit,NML=BSEdata)
+ close(UNIT=dataunit,STATUS='keep')
+
+! check for required entries
+
+! we no longer require the energyfile parameter, but for backwards compatibility
+! we still allow the user to include it (it doesn't do anything though)
+! if (trim(energyfile).eq.'undefined') then
+!  call FatalError('GetEBSDNameList:',' energy file name is undefined in '//nmlfile)
+! end if
+
+ if (trim(imagefile).eq.'undefined') then
+  call FatalError('GetBSENameList:',' image file name is undefined in '//nmlfile)
+ end if
+
+ if (trim(masterfile).eq.'undefined') then
+  call FatalError('GetBSENameList:',' master pattern file name is undefined in '//nmlfile)
+ end if
+
+ if (trim(Kosselmasterfile).eq.'undefined') then
+  call FatalError('GetBSENameList:',' Kossel master pattern file name is undefined in '//nmlfile)
+ end if
+
+ if (trim(datafile).eq.'undefined') then
+  call FatalError('GetBSENameList:',' DI input file name is undefined in '//nmlfile)
+ end if
+ 
+end if
+
+! if we get here, then all appears to be ok, and we need to fill in the enl fields
+enl%energymin = energymin
+enl%energymax = energymax
+enl%incidence = incidence
+enl%beamcurrent = beamcurrent
+enl%dwelltime = dwelltime
+enl%gammavalue = gammavalue
+enl%workingdistance = workingdistance
+enl%BSEdistance = BSEdistance
+enl%rin = rin
+enl%rout = rout 
+enl%NsqL = NsqL
+enl%nthreads = nthreads
+enl%scalingmode = scalingmode
+enl%useangles = useangles
+enl%imagefile = trim(imagefile)
+enl%masterfile = trim(masterfile)
+enl%Kosselmasterfile = trim(Kosselmasterfile)
+enl%datafile = trim(datafile)
+
+end subroutine GetBSENameList
+
 
 !--------------------------------------------------------------------------
 !
@@ -4227,10 +4444,16 @@ real(kind=sgl)           :: VTR
 real(kind=sgl)           :: CR_XC
 real(kind=sgl)           :: F_XC
 real(kind=sgl)           :: F_CR
-real(kind=sgl)           :: XCmin(3)
-real(kind=sgl)           :: XCmax(3)
+real(kind=sgl)           :: bound(3)
+real(kind=sgl)           :: w
+real(kind=sgl)           :: w_damp
+real(kind=sgl)           :: c1 
+real(kind=sgl)           :: c2 
 integer(kind=irg)        :: objective
 character(fnlen)         :: outputfile
+character(1)            :: hybrid
+character(2)            :: globalopt
+character(1)             :: single_opt
 integer(kind=irg)       :: stdout
 integer(kind=irg)       :: numsx
 integer(kind=irg)       :: numsy
@@ -4244,7 +4467,6 @@ real(kind=sgl)          :: thetac
 real(kind=sgl)          :: delta
 real(kind=sgl)          :: xpc
 real(kind=sgl)          :: ypc
-real(kind=sgl)          :: omega
 real(kind=sgl)          :: energymin
 real(kind=sgl)          :: energymax
 real(kind=sgl)          :: gammavalue
@@ -4260,6 +4482,7 @@ character(1)            :: makedictionary
 character(1)            :: applyDeformation
 character(1)            :: maskpattern
 character(1)            :: spatialaverage
+character(4)            :: Fframe
 character(3)            :: scalingmode
 character(3)            :: eulerconvention
 character(3)            :: outputformat
@@ -4277,31 +4500,37 @@ integer(kind=irg)       :: ipf_wd
 integer(kind=irg)       :: ipf_ht
 character(fnlen)        :: inputtype
 character(fnlen)        :: HDFstrings(10)
-character(fnlen)        :: HDFMetaDatastrings(10)
+
 
 ! define the IO namelist to facilitate passing variables to the program.
-namelist  / EBSDDEdata / NP, itermax, strategy, refresh, iwrite, method, VTR, CR_XC, F_XC, F_CR, XCmin, XCmax, &
+namelist  / EBSDDEdata / NP, itermax, strategy, refresh, iwrite, method, VTR, CR_XC, F_XC, F_CR, bound, hybrid, globalopt, &
                          objective, outputfile, stdout, L, thetac, delta, numsx, numsy, binning, xpc, ypc, anglefile, &
                          eulerconvention, masterfile, targetfile, bitdepth, energyfile, beamcurrent, dwelltime, energymin, &
                          energymax, gammavalue, alphaBD, scalingmode, axisangle, nthreads, outputformat, maskpattern, &
-                         energyaverage, omega, spatialaverage, applyDeformation, Ftensor, includebackground, anglefiletype, &
+                         energyaverage, spatialaverage, applyDeformation, Ftensor, includebackground, anglefiletype, &
                          makedictionary, hipassw, nregions, maskradius, poisson, patx, paty, inputtype, HDFstrings, ipf_wd, &
-                         ipf_ht, HDFMetaDatastrings, datafile
+                         ipf_ht, datafile, w, w_damp, c1, c2, single_opt, Fframe
 
 ! set the input parameters to default values (except for xtalname, which must be present)
                         
-NP=120
-itermax=200
-strategy=6
-refresh=500
+NP=60
+itermax=100
+strategy=2
+refresh=10
 iwrite=7
-method=(/0,1,0/)
-VTR= -1e-4
-CR_XC=0.5
-F_XC=0.8
-F_CR=0.8
-XCmin=(/-0.002,-0.08,-0.01/)
-XCmax=(/0.002,0.08,0.01/)
+method=(/0,1,1/)
+VTR= -1
+CR_XC=0.9
+F_XC=0.5
+F_CR=0.5
+bound=(/0.001,1.0,1.0/)
+w=1.0
+w_damp=0.99
+c1=2
+c2=2
+hybrid='n'
+globalopt='DE'
+single_opt='n'
 objective=1
 outputfile='undefined'
 stdout          = 6
@@ -4316,21 +4545,21 @@ thetac          = 0.0           ! [degrees]
 delta           = 25.0          ! [microns]
 xpc             = 0.0           ! [pixels]
 ypc             = 0.0           ! [pixels]
-omega           = 0.0
-energymin       = 15.0          ! minimum energy to consider
-energymax       = 30.0          ! maximum energy to consider
+energymin       = 10.0          ! minimum energy to consider
+energymax       = 20.0          ! maximum energy to consider
 gammavalue      = 1.0           ! gamma factor
 alphaBD         = 0.0           ! transfer lens barrel distortion parameter
 maskradius      = 240           ! mask radius
 hipassw         = 0.05          ! hi-pass filter radius
 axisangle       = (/0.0, 0.0, 1.0, 0.0/)        ! no additional axis angle rotation
 Ftensor         = reshape( (/ 1.D0, 0.D0, 0.D0, 0.D0, 1.D0, 0.D0, 0.D0, 0.D0, 1.D0 /), (/ 3,3 /) )
-beamcurrent     = 14.513D0      ! beam current (actually emission current) in nano ampere
+beamcurrent     = 150.0D0      ! beam current (actually emission current) in nano ampere
 dwelltime       = 100.0D0       ! in microseconds
-makedictionary  = 'y'
+makedictionary  = 'n'
 poisson         = 'n'           ! apply poisson noise ? 
-includebackground = 'y'         ! set to 'n' to remove realistic background intensity profile
+includebackground = 'n'         ! set to 'n' to remove realistic background intensity profile
 applyDeformation = 'n'          ! should we apply a deformation tensor to the unit cell?
+Fframe = 'crys'                 ! frame of reference for the Ftensor ('crys':crystal frame; 'samp':sample frame)
 maskpattern     = 'n'           ! 'y' or 'n' to include a circular mask
 scalingmode     = 'not'         ! intensity selector ('lin', 'gam', or 'not')
 eulerconvention = 'tsl'         ! convention for the first Euler angle ['tsl' or 'hkl']
@@ -4352,7 +4581,6 @@ ipf_wd = 100
 ipf_ht = 100
 inputtype = 'Binary'
 HDFstrings = ''
-HDFMetaDatastrings=''
 
 if (present(initonly)) then
   if (initonly) skipread = .TRUE.
@@ -4365,20 +4593,6 @@ if (.not.skipread) then
  close(UNIT=dataunit,STATUS='keep')
 
 ! check for required entries
-
-! we no longer require the energyfile parameter, but for backwards compatibility
-! we still allow the user to include it (it doesn't do anything though)
-! if (trim(energyfile).eq.'undefined') then
-!  call FatalError('GetEBSDNameList:',' energy file name is undefined in '//nmlfile)
-! end if
-
- ! if (trim(anglefile).eq.'undefined') then
-  ! call FatalError('GetEBSDDENameList:',' angle file name is undefined in '//nmlfile)
- ! end if
- 
- if (trim(datafile).eq.'undefined') then
-  call FatalError('GetEBSDDENameList:',' datafile name is undefined in '//nmlfile)
- end if
  
  if (trim(masterfile).eq.'undefined') then
   call FatalError('GetEBSDDENameList:',' master pattern file name is undefined in '//nmlfile)
@@ -4409,10 +4623,15 @@ de%VTR=VTR
 de%CR_XC=CR_XC
 de%F_XC=F_XC
 de%F_CR=F_CR
-de%XCmin=XCmin
-de%XCmax=XCmax
+de%bound=bound
+de%w=w
+de%w_damp=w_damp
+de%c1=c1
+de%c2=c2
+de%hybrid=hybrid
+de%globalopt=globalopt
 de%objective=objective
-de%HDFMetaDatastrings=HDFMetaDatastrings
+de%single_opt=single_opt
 enl%stdout = stdout
 enl%numsx = numsx
 enl%numsy = numsy
@@ -4439,6 +4658,7 @@ enl%includebackground = includebackground
 enl%makedictionary = makedictionary
 enl%poisson = poisson
 enl%applyDeformation = applyDeformation
+enl%Fframe = Fframe
 enl%maskpattern = maskpattern
 enl%scalingmode = scalingmode
 enl%eulerconvention = eulerconvention
@@ -4452,7 +4672,6 @@ enl%datafile = datafile
 ! we require energyfile to be identical to masterfile, so the 
 ! user definition, if any, in the namelist file is overwritten here...
 enl%energyfile = enl%masterfile       ! changed on 05/16/19 [MDG]
-enl%omega = omega
 enl%spatialaverage = spatialaverage
 
 p%patx = patx
@@ -5336,7 +5555,8 @@ integer(kind=irg)       :: numthick
 integer(kind=irg)       :: npix
 integer(kind=irg)       :: nthreads
 real(kind=sgl)          :: voltage
-real(kind=sgl)          :: lauec(2)
+real(kind=sgl)          :: camlen
+real(kind=sgl)          :: klaue(2)
 real(kind=sgl)          :: dmin
 real(kind=sgl)          :: convergence
 real(kind=sgl)          :: startthick
@@ -5344,7 +5564,7 @@ real(kind=sgl)          :: thickinc
 character(fnlen)        :: xtalname
 character(fnlen)        :: outname
 
-namelist /CBEDlist/ xtalname, voltage, k, fn, dmin, convergence, lauec, &
+namelist /CBEDlist/ xtalname, voltage, k, fn, dmin, convergence, klaue, camlen, &
                     nthreads, startthick, thickinc, numthick, outname, npix, maxHOLZ
 
 k = (/ 0, 0, 1 /)               ! beam direction [direction indices]
@@ -5352,11 +5572,12 @@ fn = (/ 0, 0, 1 /)              ! foil normal [direction indices]
 maxHOLZ = 2                     ! maximum HOLZ layer index to be used for the output file; note that his number
                                 ! does not affect the actual computations; it only determines which reflection 
                                 ! families will end up in the output file
-lauec = (/ 0.0, 0.0 /)          ! Laue center coordinates
+klaue = (/ 0.0, 0.0 /)          ! Laue center coordinates
 numthick = 10                   ! number of increments
 npix = 256                      ! output arrays will have size npix x npix
 nthreads = 1                    ! number of computational threads
 voltage = 200.0                 ! acceleration voltage [kV]
+camlen = 1000.0                 ! camera length [mm]
 dmin = 0.025                    ! smallest d-spacing to include in dynamical matrix [nm]
 convergence = 25.0              ! beam convergence angle [mrad]
 startthick = 10.0               ! starting thickness [nm]
@@ -5386,8 +5607,9 @@ cbednl%maxHOLZ = maxHOLZ
 cbednl%numthick = numthick
 cbednl%npix = npix
 cbednl%nthreads = nthreads
-cbednl%lauec = lauec
+cbednl%klaue = klaue
 cbednl%voltage = voltage
+cbednl%camlen = camlen
 cbednl%dmin = dmin
 cbednl%convergence = convergence
 cbednl%startthick = startthick
@@ -5714,6 +5936,7 @@ character(5)            :: progmode
 character(fnlen)        :: xtalname
 character(fnlen)        :: montagename
 character(fnlen)        :: defectfilename
+character(fnlen)        :: DDDfilename
 character(fnlen)        :: dispfile
 character(fnlen)        :: dataname
 character(fnlen)        :: ECPname
@@ -5723,7 +5946,7 @@ character(fnlen)        :: sgname
 namelist / ECCIlist / DF_L, DF_npix, DF_npiy, DF_slice, dmin, sgname, stdout, &
                       progmode, dispfile, ktmax, dkt, ECPname, summode, lauec, lauec2, &
                       dispmode, nthreads, xtalname, voltage, k, nktstep, &
-                      dataname, defectfilename, montagename
+                      dataname, defectfilename, montagename, DDDfilename
 
 ! set the input parameters to default values (except for xtalname, which must be present)
 stdout = 6
@@ -5746,6 +5969,7 @@ progmode = 'array'
 xtalname = 'undefined'
 montagename = 'undefined'
 defectfilename = 'undefined'
+DDDfilename = 'undefined'
 dispfile = 'displacements.data'
 dataname = 'ECCIout.data'
 ECPname = 'undefined'
@@ -5793,6 +6017,7 @@ eccinl%progmode = progmode
 eccinl%xtalname = xtalname
 eccinl%montagename = montagename
 eccinl%defectfilename = defectfilename
+eccinl%DDDfilename = DDDfilename
 eccinl%dispfile = dispfile
 eccinl%dataname = dataname
 eccinl%ECPname = ECPname
@@ -6334,6 +6559,7 @@ integer(kind=irg)                                 :: nthreads
 character(1)                                      :: maskpattern
 character(1)                                      :: keeptmpfile
 character(3)                                      :: scalingmode
+character(3)                                      :: similaritymetric
 character(3)                                      :: Notify
 character(fnlen)                                  :: dotproductfile
 character(fnlen)                                  :: masterfile
@@ -6371,7 +6597,7 @@ beamcurrent, dwelltime, binning, gammavalue, energymin, spatialaverage, nregions
 scalingmode, maskpattern, energyaverage, L, omega, nthreads, energymax, datafile, angfile, ctffile, &
 ncubochoric, numexptsingle, numdictsingle, ipf_ht, ipf_wd, nnk, nnav, exptfile, maskradius, inputtype, &
 dictfile, indexingmode, hipassw, stepX, stepY, tmpfile, avctffile, nosm, eulerfile, Notify, maskfile, &
-section, HDFstrings, ROI, keeptmpfile, multidevid, usenumd, nism, isangle, refinementNMLfile
+section, HDFstrings, ROI, keeptmpfile, multidevid, usenumd, nism, isangle, refinementNMLfile, similaritymetric
 
 ! set the input parameters to default values (except for xtalname, which must be present)
 ncubochoric     = 50
@@ -6413,6 +6639,7 @@ keeptmpfile     = 'n'
 maskpattern     = 'n'           ! 'y' or 'n' to include a circular mask
 Notify          = 'Off'
 scalingmode     = 'not'         ! intensity selector ('lin', 'gam', or 'not')
+similaritymetric = 'ndp'
 masterfile      = 'undefined'   ! filename
 dotproductfile  = 'undefined'
 energymin       = 10.0
@@ -6538,6 +6765,7 @@ enl%gammavalue    = gammavalue
 enl%beamcurrent   = beamcurrent
 enl%dwelltime     = dwelltime
 enl%scalingmode   = scalingmode
+enl%similaritymetric = similaritymetric
 enl%ncubochoric   = ncubochoric
 enl%omega         = omega
 enl%energymin     = energymin

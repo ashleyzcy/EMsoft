@@ -94,6 +94,7 @@ type GBONameListType
         character(3)            :: CSLtype
         logical                 :: fixedAB
         character(fnlen)        :: outname
+        character(fnlen)        :: octonions
 end type GBONameListType
 
 ! namelist for EMGBOdm program
@@ -494,6 +495,17 @@ type EBSDMasterNameListType
         logical                 :: uniform
 end type EBSDMasterNameListType
 
+! namelist for the ISEMaster program
+type ISEMasterNameListType
+        integer(kind=irg)       :: npx
+        integer(kind=irg)       :: nthreads
+        real(kind=sgl)          :: iscale(3)
+        character(3)            :: Notify
+        character(fnlen)        :: outname
+        character(fnlen)        :: tiffname
+        character(fnlen)        :: xtalname
+end type ISEMasterNameListType
+
 ! namelist for the EMEECmaster program
 type EECMasterNameListType
         integer(kind=irg)       :: npx
@@ -581,7 +593,6 @@ type EBSDNameListType
         real(kind=sgl)          :: L
         real(kind=sgl)          :: thetac
         real(kind=sgl)          :: delta
-        real(kind=sgl)          :: omega
         real(kind=sgl)          :: xpc
         real(kind=sgl)          :: ypc
         real(kind=sgl)          :: energymin
@@ -598,6 +609,7 @@ type EBSDNameListType
         character(1)            :: includebackground
         character(1)            :: applyDeformation
         character(1)            :: maskpattern
+        character(4)            :: Fframe
         character(3)            :: scalingmode
         character(3)            :: eulerconvention
         character(3)            :: outputformat
@@ -611,6 +623,28 @@ type EBSDNameListType
         character(fnlen)        :: datafile
 end type EBSDNameListType
 
+! namelist for EMBSE program 
+type BSENameListType 
+        real(kind=sgl)          :: energymin
+        real(kind=sgl)          :: energymax
+        real(kind=sgl)          :: incidence
+        real(kind=sgl)          :: beamcurrent
+        real(kind=sgl)          :: dwelltime
+        real(kind=sgl)          :: gammavalue
+        real(kind=sgl)          :: workingdistance
+        real(kind=sgl)          :: BSEdistance
+        real(kind=sgl)          :: rin
+        real(kind=sgl)          :: rout
+        integer(kind=irg)       :: NsqL
+        integer(kind=irg)       :: nthreads
+        character(fnlen)        :: scalingmode
+        character(fnlen)        :: useangles
+        character(fnlen)        :: imagefile
+        character(fnlen)        :: masterfile
+        character(fnlen)        :: Kosselmasterfile
+        character(fnlen)        :: datafile
+end type BSENameListType
+
 type EBSDDENameListType
 integer(kind=irg)        :: NP
 integer(kind=irg)        :: itermax
@@ -622,11 +656,16 @@ real(kind=sgl)           :: VTR
 real(kind=sgl)           :: CR_XC
 real(kind=sgl)           :: F_XC
 real(kind=sgl)           :: F_CR
-real(kind=sgl)           :: XCmin(3)
-real(kind=sgl)           :: XCmax(3)
+real(kind=sgl)           :: bound(3)
+real(kind=sgl)           :: w
+real(kind=sgl)           :: w_damp
+real(kind=sgl)           :: c1 
+real(kind=sgl)           :: c2 
 integer(kind=irg)        :: objective
 character(fnlen)         :: outputfile
-character(fnlen)         :: HDFMetaDatastrings(10)
+character(1)             :: hybrid
+character(2)             :: globalopt
+character(1)             :: single_opt
 end type EBSDDENameListType
 
 ! namelist for the EMEBSDdefect program
@@ -952,7 +991,8 @@ type CBEDNameListType
         integer(kind=irg)       :: k(3)
         integer(kind=irg)       :: fn(3)
         real(kind=sgl)          :: voltage
-        real(kind=sgl)          :: lauec(2)
+        real(kind=sgl)          :: camlen
+        real(kind=sgl)          :: klaue(2)
         real(kind=sgl)          :: dmin
         real(kind=sgl)          :: convergence
         real(kind=sgl)          :: startthick
@@ -1151,6 +1191,7 @@ type ECCINameListType
     character(fnlen)        :: montagename
     character(fnlen)        :: defectfilename
     character(fnlen)        :: dispfile
+    character(fnlen)        :: DDDfilename
     character(fnlen)        :: dataname
     character(fnlen)        :: ECPname
     character(fnlen)        :: sgname
@@ -1327,6 +1368,7 @@ type EBSDIndexingNameListType
         character(1)            :: maskpattern
         character(3)            :: scalingmode
         character(3)            :: Notify
+        character(3)            :: similaritymetric
         !character(3)            :: eulerconvention
         !character(3)            :: outputformat
         character(1)            :: keeptmpfile

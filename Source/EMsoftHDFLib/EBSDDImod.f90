@@ -231,6 +231,7 @@ if (trim(modalityname) .eq. 'EBSD') then
                                 getIQ=.TRUE., & 
                                 getOSM=.TRUE., & 
                                 getEulerAngles=.TRUE., &
+                                getDictionaryEulerAngles=.TRUE., &
                                 getTopMatchIndices=.TRUE.) 
 
     w = dinl%hipassw
@@ -247,11 +248,11 @@ if (trim(modalityname) .eq. 'EBSD') then
 ! read the appropriate set of Euler angles from the array of near matches 
     do ii=1,ronl%matchdepth
       do jj=1,Nexp
-        euler_bestmatch(1:3,ii,jj) = EBSDDIdata%EulerAngles(1:3,EBSDDIdata%TopMatchIndices(ii,jj))
+        euler_bestmatch(1:3,ii,jj) = EBSDDIdata%DictionaryEulerAngles(1:3,EBSDDIdata%TopMatchIndices(ii,jj))
       end do 
     end do 
     euler_bestmatch = euler_bestmatch * dtor
-    deallocate(EBSDDIdata%EulerAngles, EBSDDIdata%TopMatchIndices)
+    deallocate(EBSDDIdata%DictionaryEulerAngles, EBSDDIdata%TopMatchIndices)
   end if
 
   CIlist(1:Nexp) = EBSDDIdata%CI(1:Nexp)
@@ -517,6 +518,7 @@ end do
 !======== pre-process the experimental patterns=================
 !===============================================================
 ! is the output to a temporary file or will it be kept in memory?
+dinl%similaritymetric = 'ndp'
 if (ronl%inRAM.eqv..TRUE.) then 
 ! allocate the array that will hold all the processed experimental patterns
   allocate(epatterns(correctsize,totnumexpt),stat=istat)
